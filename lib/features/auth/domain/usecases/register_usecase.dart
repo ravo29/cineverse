@@ -1,10 +1,10 @@
-import '../../data/providers/auth_provider.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'login_usecase.dart';
 
 class RegisterUseCase {
-  RegisterUseCase({required this._authProvider, required this._loginUseCase});
+  RegisterUseCase({required this.repository, required this._loginUseCase});
 
-  final AuthProvider _authProvider;
+  final AuthRepository repository;
   final LoginUseCase _loginUseCase;
 
   Future<void> call({
@@ -12,7 +12,7 @@ class RegisterUseCase {
     required String email,
     required String password,
   }) async {
-    await _authProvider.register(name: name, email: email, password: password);
+    await repository.register(name: name, email: email, password: password);
     await _loginUseCase(email: email, password: password);
   }
 }

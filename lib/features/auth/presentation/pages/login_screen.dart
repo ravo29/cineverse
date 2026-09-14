@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/errors/auth_exception.dart';
 import '../../data/providers/auth_provider.dart';
 import '../../domain/usecases/login_usecase.dart';
+import '../../data/repositories/auth_repository.dart';
 import 'register_screen.dart';
 import '../../../home/presentation/pages/home_screen.dart';
 
@@ -18,7 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _loginUseCase = LoginUseCase(
-    authProvider: RestAuthProvider(),
+    repository: AuthRepositoryImpl(),
     tokenProvider: SecureTokenProvider(),
   );
   bool _isSubmitting = false;

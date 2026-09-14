@@ -11,6 +11,7 @@ import '../../data/repositories/favorites_repository.dart';
 import '../../data/repositories/movies_repository.dart';
 import 'favorites_screen.dart';
 import 'movie_detail_screen.dart';
+import 'top_rated_screen.dart';
 
 // Palette violette partagée avec le reste de l'application.
 const _bgTop = Color(0xFF150029);
@@ -208,6 +209,13 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         actions: [
+          IconButton(
+            tooltip: 'Films les mieux notés',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const TopRatedScreen()),
+            ),
+            icon: const Icon(Icons.star_border_rounded, color: Colors.white70),
+          ),
           IconButton(
             tooltip: 'Mes favoris',
             onPressed: () => Navigator.of(context).push(

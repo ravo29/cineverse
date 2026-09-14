@@ -4,6 +4,8 @@ import '../../domain/entities/movie.dart';
 abstract interface class MoviesRepository {
   Future<MoviesPage> getPopular({required int page, required int pageSize});
 
+  Future<MoviesPage> getTopRated({required int page, required int pageSize});
+
   Future<Movie> getDetails({required String movieId});
 }
 
@@ -16,6 +18,11 @@ class MoviesRepositoryImpl implements MoviesRepository {
   @override
   Future<MoviesPage> getPopular({required int page, required int pageSize}) {
     return _provider.fetchPopular(page: page, pageSize: pageSize);
+  }
+
+  @override
+  Future<MoviesPage> getTopRated({required int page, required int pageSize}) {
+    return _provider.fetchTopRated(page: page, pageSize: pageSize);
   }
 
   @override

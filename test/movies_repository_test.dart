@@ -15,6 +15,11 @@ class _FakeMoviesProvider implements MoviesProvider {
   }
 
   @override
+  Future<MoviesPage> fetchTopRated({required int page, required int pageSize}) {
+    return Future.value(MoviesPage(movies: [movie], hasMore: false));
+  }
+
+  @override
   Future<Movie> fetchDetails({required String movieId}) {
     return Future.value(movie);
   }

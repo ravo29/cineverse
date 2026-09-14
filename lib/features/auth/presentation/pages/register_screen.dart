@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/errors/auth_exception.dart';
 import '../../data/providers/auth_provider.dart';
+import '../../data/repositories/auth_repository.dart';
 import '../../domain/usecases/login_usecase.dart';
 import '../../domain/usecases/register_usecase.dart';
 import '../../../home/presentation/pages/home_screen.dart';
@@ -20,9 +21,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _passwordController = TextEditingController();
   final _confirmationController = TextEditingController();
   final _registerUseCase = RegisterUseCase(
-    authProvider: RestAuthProvider(),
+    repository: AuthRepositoryImpl(),
     loginUseCase: LoginUseCase(
-      authProvider: RestAuthProvider(),
+      repository: AuthRepositoryImpl(),
       tokenProvider: SecureTokenProvider(),
     ),
   );
