@@ -14,6 +14,8 @@ abstract interface class AuthProvider {
     required String email,
     required String password,
   });
+
+  Future<AuthSession> refresh(String refreshToken);
 }
 
 class AuthSession {
@@ -81,6 +83,7 @@ class RestAuthProvider implements AuthProvider {
     }
   }
 
+  @override
   Future<AuthSession> refresh(String refreshToken) async {
     if (!_isConfigured) {
       throw const AuthException('Configuration Supabase absente.');

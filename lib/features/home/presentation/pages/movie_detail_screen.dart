@@ -59,11 +59,12 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
+            SnackBar(
               behavior: SnackBarBehavior.floating,
               backgroundColor: _cardBorder,
               content: Text(
-                'Favori enregistré localement, synchronisation en attente.',
+                'Favori enregistré localement, '
+                '${result.pendingOperations} opération(s) en attente.',
               ),
               duration: Duration(seconds: 3),
             ),

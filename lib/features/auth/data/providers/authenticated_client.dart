@@ -1,20 +1,22 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 
-import 'auth_provider.dart';
-
-typedef SessionRefresher = Future<AuthSession> Function(String refreshToken);
+import '../repositories/auth_repository.dart';
+import '../storage/session_storage.dart';
 
 class AuthenticatedClient extends http.BaseClient {
   AuthenticatedClient({
     required this.inner,
-    required this.storage,
-    required this.refresh,
-  });
+    AuthRepository? authRepository,
+    SessionStorage? sessionStorage,
+    FlutterSecureStorage? storage,
+  })  : sessionStorage = sessionStorage ??
+            SecureSessionStorage(storage: storage),
+        authRepository = authRepository ?? AuthRepositoryImpl();
 
   final http.Client inner;
-  final FlutterSecureStorage storage;
-  final SessionRefresher refresh;
+  final SessionStorage sessionStorage;
+  final AuthRepository authRepository;
   bool _refreshing = false;
 
   @override
@@ -23,22 +25,13 @@ class AuthenticatedClient extends http.BaseClient {
     final response = await inner.send(prepared);
     if (response.statusCode != 401 || _refreshing) return response;
 
-    final refreshToken = await storage.read(key: SecureTokenProvider.refreshTokenKey);
+    final refreshToken = await sessionStorage.readRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) return response;
 
     _refreshing = true;
     try {
-      final session = await refresh(refreshToken);
-      await storage.write(
-        key: SecureTokenProvider.tokenKey,
-        value: session.accessToken,
-      );
-      if (session.refreshToken != null) {
-        await storage.write(
-          key: SecureTokenProvider.refreshTokenKey,
-          value: session.refreshToken,
-        );
-      }
+      final session = await authRepository.refresh(refreshToken);
+      await sessionStorage.save(session);
       return await inner.send(await _withAccessToken(request));
     } finally {
       _refreshing = false;
@@ -46,7 +39,7 @@ class AuthenticatedClient extends http.BaseClient {
   }
 
   Future<http.BaseRequest> _withAccessToken(http.BaseRequest request) async {
-    final token = await storage.read(key: SecureTokenProvider.tokenKey);
+    final token = await sessionStorage.readAccessToken();
     final copy = _copyRequest(request);
     if (token != null && token.isNotEmpty) {
       copy.headers['Authorization'] = 'Bearer $token';

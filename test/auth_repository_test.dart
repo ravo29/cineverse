@@ -15,6 +15,11 @@ class _FakeAuthProvider implements AuthProvider {
     required String email,
     required String password,
   }) async {}
+
+  @override
+  Future<AuthSession> refresh(String refreshToken) {
+    return Future.value(const AuthSession(accessToken: 'refreshed'));
+  }
 }
 
 void main() {

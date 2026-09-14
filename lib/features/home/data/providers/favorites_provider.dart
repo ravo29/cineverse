@@ -5,15 +5,21 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 
-import '../../../auth/data/providers/auth_provider.dart';
 import '../../../auth/data/providers/authenticated_client.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../auth/data/storage/session_storage.dart';
 import '../../domain/entities/movie.dart';
 
 class FavoriteSyncResult {
-  const FavoriteSyncResult({required this.isFavorite, required this.synced});
+  const FavoriteSyncResult({
+    required this.isFavorite,
+    required this.synced,
+    this.pendingOperations = 0,
+  });
 
   final bool isFavorite;
   final bool synced;
+  final int pendingOperations;
 }
 
 class FavoritesLoadResult {
@@ -28,12 +34,15 @@ class FavoritesProvider {
     this.boxName = 'cineverse',
     http.Client? client,
     FlutterSecureStorage? secureStorage,
+    AuthRepository? authRepository,
+    SessionStorage? sessionStorage,
   }) : _secureStorage = secureStorage ?? const FlutterSecureStorage(),
        _client = client ??
            AuthenticatedClient(
              inner: http.Client(),
-             storage: secureStorage ?? const FlutterSecureStorage(),
-             refresh: (token) => RestAuthProvider().refresh(token),
+             sessionStorage: sessionStorage ??
+                 SecureSessionStorage(storage: secureStorage),
+             authRepository: authRepository ?? AuthRepositoryImpl(),
            );
 
   static const _favoritesKey = 'favorite_movies';
@@ -90,7 +99,11 @@ class FavoritesProvider {
     final synced = await _send(operation);
     if (synced) await _removeFromQueue(operation);
 
-    return FavoriteSyncResult(isFavorite: !isFavorite, synced: synced);
+    return FavoriteSyncResult(
+      isFavorite: !isFavorite,
+      synced: synced,
+      pendingOperations: (await _readQueue()).length,
+    );
   }
 
   Future<FavoriteSyncResult> remove(Movie movie) async {
@@ -108,7 +121,11 @@ class FavoritesProvider {
     final synced = await _send(operation);
     if (synced) await _removeFromQueue(operation);
 
-    return FavoriteSyncResult(isFavorite: false, synced: synced);
+    return FavoriteSyncResult(
+      isFavorite: false,
+      synced: synced,
+      pendingOperations: (await _readQueue()).length,
+    );
   }
 
   Future<void> synchronizePending() async {

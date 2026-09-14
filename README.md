@@ -6,11 +6,13 @@ CineVerse est une application Flutter de découverte de films. Elle utilise TMDB
 
 - Connexion et inscription Supabase avec stockage sécurisé de session.
 - Renouvellement automatique du token après une réponse HTTP `401`.
+- Intercepteur HTTP `AuthenticatedClient` : injection du bearer token, refresh via `AuthRepository`, puis rejeu de la requête initiale.
 - Catalogue paginé des films populaires depuis TMDB.
 - Écran de détail d'un film avec note, genres, synopsis et poster.
 - Écran des favoris synchronisés avec Supabase REST.
 - Cache local Hive pour les pages TMDB et les favoris.
 - Mode hors-ligne : les dernières données locales restent consultables et les modifications de favoris sont mises en file d'attente.
+- La queue Hive est dédupliquée par utilisateur et film, puis rejouée à la prochaine lecture ou modification des favoris. L'interface affiche le nombre d'opérations en attente.
 - Messages utilisateur pour les erreurs réseau, d'authentification, de quota et de serveur.
 
 ## Architecture
@@ -31,7 +33,7 @@ lib/
 test/                         tests unitaires des repositories
 ```
 
-Les écrans dépendent des use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. Cette structure permet de remplacer le réseau par des doublures dans les tests.
+Les écrans dépendent des use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. `SessionStorage` abstrait `flutter_secure_storage`, ce qui rend le refresh et les tests injectables. Cette structure permet de remplacer le réseau par des doublures dans les tests.
 
 ## Configuration et lancement
 
@@ -47,6 +49,12 @@ flutter run -d chrome `
 ```
 
 Un token TMDB Read Access peut remplacer la clé API avec `TMDB_BEARER_TOKEN`. Ne versionnez jamais les clés ou tokens : utilisez des variables d'environnement ou des secrets CI.
+
+## API utilisées
+
+- Supabase Auth : `POST /auth/v1/token?grant_type=password`, `POST /auth/v1/token?grant_type=refresh_token` et `POST /auth/v1/signup`.
+- Supabase REST : lecture, ajout et suppression des favoris via `/rest/v1/favorites`.
+- TMDB : `GET /3/movie/popular`, `GET /3/movie/top_rated` et `GET /3/movie/{movie_id}` avec langue `fr-FR`.
 
 ## Vérification
 

@@ -356,10 +356,13 @@ class _MovieCardState extends State<_MovieCard> {
         ScaffoldMessenger.of(context)
           ..hideCurrentSnackBar()
           ..showSnackBar(
-            const SnackBar(
+            SnackBar(
               behavior: SnackBarBehavior.floating,
               backgroundColor: _cardBorder,
-              content: Text('Favori enregistré localement.'),
+              content: Text(
+                'Favori enregistré localement. '
+                '${result.pendingOperations} opération(s) en attente.',
+              ),
               duration: Duration(seconds: 3),
             ),
           );

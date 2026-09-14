@@ -34,8 +34,6 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<AuthSession> refresh(String refreshToken) {
-    final provider = _provider;
-    if (provider is RestAuthProvider) return provider.refresh(refreshToken);
-    throw StateError('The configured auth provider does not support refresh.');
+    return _provider.refresh(refreshToken);
   }
 }
