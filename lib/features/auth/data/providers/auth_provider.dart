@@ -7,13 +7,20 @@ import 'package:http/http.dart' as http;
 import '../../../../core/errors/auth_exception.dart';
 
 abstract interface class AuthProvider {
-  Future<String> login({required String email, required String password});
+  Future<AuthSession> login({required String email, required String password});
 
   Future<void> register({
     required String name,
     required String email,
     required String password,
   });
+}
+
+class AuthSession {
+  const AuthSession({required this.accessToken, this.refreshToken});
+
+  final String accessToken;
+  final String? refreshToken;
 }
 
 class RestAuthProvider implements AuthProvider {
@@ -26,7 +33,7 @@ class RestAuthProvider implements AuthProvider {
   final http.Client _client;
 
   @override
-  Future<String> login({
+  Future<AuthSession> login({
     required String email,
     required String password,
   }) async {
@@ -55,7 +62,10 @@ class RestAuthProvider implements AuthProvider {
         throw const AuthException('Le serveur n’a pas renvoyé de token JWT.');
       }
 
-      return accessToken;
+      return AuthSession(
+        accessToken: accessToken,
+        refreshToken: responseBody['refresh_token'] as String?,
+      );
     } on AuthException {
       rethrow;
     } on TimeoutException {
@@ -68,6 +78,41 @@ class RestAuthProvider implements AuthProvider {
       throw const AuthException('Réponse invalide du serveur.');
     } on Exception {
       throw const AuthException('Connexion réseau impossible.');
+    }
+  }
+
+  Future<AuthSession> refresh(String refreshToken) async {
+    if (!_isConfigured) {
+      throw const AuthException('Configuration Supabase absente.');
+    }
+
+    try {
+      final endpoint = Uri.parse('$_baseUrl/auth/v1/token').replace(
+        queryParameters: {'grant_type': 'refresh_token'},
+      );
+      final response = await _post(
+        endpoint,
+        body: {'refresh_token': refreshToken},
+      );
+      final responseBody = _decodeResponse(response.body);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AuthException(_errorMessage(response.statusCode, responseBody));
+      }
+
+      final accessToken = responseBody['access_token'];
+      if (accessToken is! String || accessToken.isEmpty) {
+        throw const AuthException('Session expirée. Veuillez vous reconnecter.');
+      }
+      return AuthSession(
+        accessToken: accessToken,
+        refreshToken: responseBody['refresh_token'] as String? ?? refreshToken,
+      );
+    } on AuthException {
+      rethrow;
+    } on TimeoutException {
+      throw const AuthException('Connexion réseau impossible.');
+    } on Exception {
+      throw const AuthException('Impossible de renouveler la session.');
     }
   }
 
@@ -199,6 +244,22 @@ class SecureTokenProvider {
     }
   }
 
+  Future<void> saveSession(AuthSession session) async {
+    try {
+      await _storage.write(key: tokenKey, value: session.accessToken);
+      if (session.refreshToken != null) {
+        await _storage.write(
+          key: refreshTokenKey,
+          value: session.refreshToken,
+        );
+      }
+    } on Exception {
+      throw const AuthException(
+        'Impossible de sécuriser la session. Veuillez réessayer.',
+      );
+    }
+  }
+
   Future<String?> read() async {
     try {
       return await _storage.read(key: tokenKey);
@@ -210,10 +271,15 @@ class SecureTokenProvider {
   Future<void> clear() async {
     try {
       await _storage.delete(key: tokenKey);
+      await _storage.delete(key: refreshTokenKey);
     } on Exception {
       throw const AuthException(
         'Impossible de fermer la session de manière sécurisée.',
       );
     }
   }
+
+  Future<String?> readRefreshToken() => _storage.read(key: refreshTokenKey);
+
+  static const refreshTokenKey = 'refresh_token';
 }

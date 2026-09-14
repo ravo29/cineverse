@@ -1,11 +1,12 @@
 import '../../data/providers/movies_provider.dart';
+import '../../data/repositories/movies_repository.dart';
 
 class GetPopularMoviesUseCase {
-  GetPopularMoviesUseCase({required this._provider});
+  GetPopularMoviesUseCase({required this.repository});
 
-  final MoviesProvider _provider;
+  final MoviesRepository repository;
 
   Future<MoviesPage> call({required int page, required int pageSize}) {
-    return _provider.fetchPopular(page: page, pageSize: pageSize);
+    return repository.getPopular(page: page, pageSize: pageSize);
   }
 }

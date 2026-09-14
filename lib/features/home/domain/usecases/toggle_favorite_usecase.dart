@@ -1,18 +1,19 @@
+import '../../data/repositories/favorites_repository.dart';
 import '../../data/providers/favorites_provider.dart';
 import '../entities/movie.dart';
 
 class ToggleFavoriteUseCase {
-  ToggleFavoriteUseCase({required this._provider});
+  ToggleFavoriteUseCase({required this.repository});
 
-  final FavoritesProvider _provider;
+  final FavoritesRepository repository;
 
-  Future<bool> isFavorite(String movieId) => _provider.isFavorite(movieId);
+  Future<bool> isFavorite(String movieId) => repository.isFavorite(movieId);
 
-  Future<FavoritesLoadResult> getFavorites() => _provider.getFavorites();
+  Future<FavoritesLoadResult> getFavorites() => repository.getFavorites();
 
-  Future<FavoriteSyncResult> call(Movie movie) => _provider.toggle(movie);
+  Future<FavoriteSyncResult> call(Movie movie) => repository.toggle(movie);
 
-  Future<FavoriteSyncResult> remove(Movie movie) => _provider.remove(movie);
+  Future<FavoriteSyncResult> remove(Movie movie) => repository.remove(movie);
 
-  Future<void> synchronizePending() => _provider.synchronizePending();
+  Future<void> synchronizePending() => repository.synchronizePending();
 }

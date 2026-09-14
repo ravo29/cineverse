@@ -7,6 +7,8 @@ import '../../domain/entities/movie.dart';
 import '../../domain/usecases/get_popular_movies_usecase.dart';
 import '../../domain/usecases/toggle_favorite_usecase.dart';
 import '../../../auth/presentation/pages/login_screen.dart';
+import '../../data/repositories/favorites_repository.dart';
+import '../../data/repositories/movies_repository.dart';
 import 'favorites_screen.dart';
 import 'movie_detail_screen.dart';
 
@@ -31,10 +33,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final _scrollController = ScrollController();
   final _getPopularMovies = GetPopularMoviesUseCase(
-    provider: RestMoviesProvider(),
+    repository: MoviesRepositoryImpl(),
   );
   final _secureTokenProvider = SecureTokenProvider();
-  final _favoritesProvider = FavoritesProvider();
   final List<Movie> _movies = [];
   int _page = 1;
   bool _hasMore = true;
@@ -152,7 +153,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     try {
       await _secureTokenProvider.clear();
-      await _favoritesProvider.clearLocalData();
+      await FavoritesProvider().clearLocalData();
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
         MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
@@ -318,7 +319,9 @@ class _MovieCard extends StatefulWidget {
 }
 
 class _MovieCardState extends State<_MovieCard> {
-  final _favorites = ToggleFavoriteUseCase(provider: FavoritesProvider());
+  final _favorites = ToggleFavoriteUseCase(
+    repository: FavoritesRepositoryImpl(),
+  );
   bool? _isFavorite;
   bool _isUpdating = false;
 

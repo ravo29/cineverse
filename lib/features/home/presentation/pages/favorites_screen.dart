@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../data/providers/favorites_provider.dart';
+import '../../data/repositories/favorites_repository.dart';
 import '../../domain/entities/movie.dart';
 import '../../domain/usecases/toggle_favorite_usecase.dart';
 import 'movie_detail_screen.dart';
@@ -22,7 +22,7 @@ class FavoritesScreen extends StatefulWidget {
 
 class _FavoritesScreenState extends State<FavoritesScreen> {
   final _favoritesUseCase = ToggleFavoriteUseCase(
-    provider: FavoritesProvider(),
+    repository: FavoritesRepositoryImpl(),
   );
   List<Movie> _favorites = [];
   bool _isLoading = true;

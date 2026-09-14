@@ -5,6 +5,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 
+import '../../../auth/data/providers/auth_provider.dart';
+import '../../../auth/data/providers/authenticated_client.dart';
 import '../../domain/entities/movie.dart';
 
 class FavoriteSyncResult {
@@ -26,8 +28,13 @@ class FavoritesProvider {
     this.boxName = 'cineverse',
     http.Client? client,
     FlutterSecureStorage? secureStorage,
-  }) : _client = client ?? http.Client(),
-       _secureStorage = secureStorage ?? const FlutterSecureStorage();
+  }) : _secureStorage = secureStorage ?? const FlutterSecureStorage(),
+       _client = client ??
+           AuthenticatedClient(
+             inner: http.Client(),
+             storage: secureStorage ?? const FlutterSecureStorage(),
+             refresh: (token) => RestAuthProvider().refresh(token),
+           );
 
   static const _favoritesKey = 'favorite_movies';
   static const _syncQueueKey = 'favorite_sync_queue';

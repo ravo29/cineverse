@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
-import '../../data/providers/favorites_provider.dart';
+import '../../data/repositories/favorites_repository.dart';
+import '../../data/repositories/movies_repository.dart';
 import '../../data/providers/movies_provider.dart';
 import '../../domain/entities/movie.dart';
 import '../../domain/usecases/get_movie_details_usecase.dart';
@@ -25,9 +26,11 @@ class MovieDetailScreen extends StatefulWidget {
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
   late final Future<Movie> _movieFuture = GetMovieDetailsUseCase(
-    provider: RestMoviesProvider(),
+    repository: MoviesRepositoryImpl(),
   )(movieId: widget.movieId);
-  final _toggleFavorite = ToggleFavoriteUseCase(provider: FavoritesProvider());
+  final _toggleFavorite = ToggleFavoriteUseCase(
+    repository: FavoritesRepositoryImpl(),
+  );
   bool? _isFavorite;
   bool _isUpdatingFavorite = false;
   Movie? _loadedMovie;

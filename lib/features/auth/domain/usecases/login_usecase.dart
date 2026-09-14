@@ -7,7 +7,10 @@ class LoginUseCase {
   final SecureTokenProvider _tokenProvider;
 
   Future<void> call({required String email, required String password}) async {
-    final token = await _authProvider.login(email: email, password: password);
-    await _tokenProvider.save(token);
+    final session = await _authProvider.login(
+      email: email,
+      password: password,
+    );
+    await _tokenProvider.saveSession(session);
   }
 }
