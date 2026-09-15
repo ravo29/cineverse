@@ -24,17 +24,23 @@ Le projet suit une organisation Feature-First avec séparation Clean Architectur
 lib/
 	core/                       erreurs et infrastructure partagée
 	features/auth/
-		data/                     providers, session et client authentifié
+		data/                     providers, repositories, session et réseau
 		domain/                   use cases
 		presentation/             écrans de connexion et splash
 	features/home/
 		data/                     providers, cache et repositories
 		domain/                   entités et use cases
-		presentation/             catalogue, détail et favoris
+		presentation/             pages et controllers d'état
 test/                         tests unitaires des repositories
 ```
 
-Les écrans dépendent des use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. `SessionStorage` abstrait `flutter_secure_storage`, ce qui rend le refresh, le logout et les tests injectables. Cette structure permet de remplacer le réseau par des doublures dans les tests.
+Les pages dépendent de controllers d'état, les controllers utilisent les use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. `FavoritesController` utilise `ChangeNotifier` et est fourni à l'arbre Flutter par `provider`. `SessionStorage` abstrait `flutter_secure_storage`, ce qui rend le refresh, le logout et les tests injectables. Cette structure permet de remplacer le réseau par des doublures dans les tests.
+
+Les providers et repositories restent dans `data` car ils appartiennent à la frontière infrastructure de chaque feature ; le domaine ne dépend que des contrats et entités, tandis que la présentation ne connaît ni Hive ni HTTP.
+
+### Réseau et refresh JWT
+
+Le projet conserve `package:http` pour limiter la surface de dépendances et utilise `AuthenticatedClient`, un `BaseClient` injectable, comme intercepteur. Il ajoute le bearer token, partage une seule opération de refresh entre les requêtes concurrentes en `401`, persiste le nouveau couple de tokens et rejoue uniquement les requêtes `http.Request` dont le corps est rejouable. Les flux HTTP non rejouables retournent le `401` initial au lieu de risquer une seconde consommation du flux. Ce comportement est couvert par `test/authenticated_client_test.dart` ; une migration vers Dio resterait possible, mais n'apporterait pas de bénéfice fonctionnel nécessaire à cette architecture.
 
 ### Stratégie hors-ligne
 
@@ -49,11 +55,19 @@ flutter pub get
 flutter run -d chrome `
 	--dart-define=SUPABASE_URL=http://127.0.0.1:54321 `
 	--dart-define=SUPABASE_ANON_KEY=votre_cle_anon `
-	--dart-define=API_BASE_URL=http://127.0.0.1:54321 `
 	--dart-define=TMDB_API_KEY=votre_cle_tmdb
 ```
 
-Un token TMDB Read Access peut remplacer la clé API avec `TMDB_BEARER_TOKEN`. Ne versionnez jamais les clés ou tokens : utilisez des variables d'environnement ou des secrets CI.
+Un token TMDB Read Access peut remplacer la clé API avec `TMDB_BEARER_TOKEN`. Pour une exécution avec ce token :
+
+```powershell
+flutter run -d chrome `
+	--dart-define=SUPABASE_URL=https://votre-projet.supabase.co `
+	--dart-define=SUPABASE_ANON_KEY=votre_cle_anon `
+	--dart-define=TMDB_BEARER_TOKEN=votre_token_tmdb
+```
+
+Ne versionnez jamais les clés ou tokens. En CI, exposez-les comme secrets et transmettez-les à `flutter test` ou `flutter build` via `--dart-define`, sans les écrire dans le dépôt.
 
 ## API utilisées
 
@@ -70,4 +84,4 @@ flutter test
 
 Les tests unitaires couvrent les repositories d'authentification, de films et de favoris avec des providers injectés. Ils vérifient notamment la délégation, les contrats de domaine et les métadonnées de cache.
 
-La CI GitHub Actions exécute ces deux commandes sur chaque push et pull request.
+La CI GitHub Actions exécute `flutter pub get`, `flutter analyze` et `flutter test` sur chaque push vers `main` et chaque pull request. Une évolution recommandée consiste à ajouter les builds Android, iOS et web dans des jobs séparés, avec les secrets injectés au niveau du job plutôt que dans les logs.

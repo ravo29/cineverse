@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
-import '../../data/repositories/favorites_repository.dart';
+import '../controllers/favorites_controller.dart';
 import '../../domain/entities/movie.dart';
-import '../../domain/usecases/toggle_favorite_usecase.dart';
 import 'movie_detail_screen.dart';
 
 // Palette violette partagée avec le flux d'authentification.
@@ -13,65 +13,32 @@ const _accentEnd = Color(0xFF7B2FF7);
 const _cardFill = Color(0xFF1E0B33);
 const _cardBorder = Color(0xFF3A1B5C);
 
-class FavoritesScreen extends StatefulWidget {
+class FavoritesScreen extends StatelessWidget {
   const FavoritesScreen({super.key});
 
   @override
-  State<FavoritesScreen> createState() => _FavoritesScreenState();
+  Widget build(BuildContext context) {
+    return ChangeNotifierProvider<FavoritesController>(
+      create: (_) => FavoritesController()..load(),
+      child: const _FavoritesView(),
+    );
+  }
 }
 
-class _FavoritesScreenState extends State<FavoritesScreen> {
-  final _favoritesUseCase = ToggleFavoriteUseCase(
-    repository: FavoritesRepositoryImpl(),
-  );
-  List<Movie> _favorites = [];
-  bool _isLoading = true;
-  String? _errorMessage;
+class _FavoritesView extends StatefulWidget {
+  const _FavoritesView();
 
   @override
-  void initState() {
-    super.initState();
-    _loadFavorites();
-  }
+  State<_FavoritesView> createState() => _FavoritesViewState();
+}
 
-  Future<void> _loadFavorites() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final result = await _favoritesUseCase.getFavorites();
-      if (!mounted) return;
-      setState(() => _favorites = result.favorites);
-      if (result.fromCache) _showOfflineMessage();
-    } on Exception {
-      if (mounted) {
-        setState(() => _errorMessage = 'Impossible de charger les favoris.');
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
-  }
-
-  void _showOfflineMessage() {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: _cardBorder,
-          content: Text('Hors-ligne : favoris locaux affichés.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-  }
-
-  Future<void> _removeFavorite(Movie movie) async {
-    setState(() => _favorites.removeWhere((item) => item.id == movie.id));
-
-    final result = await _favoritesUseCase.remove(movie);
-    if (!mounted || result.synced) return;
+class _FavoritesViewState extends State<_FavoritesView> {
+  Future<void> _removeFavorite(
+    FavoritesController controller,
+    Movie movie,
+  ) async {
+    final result = await controller.remove(movie);
+    if (!mounted || result == null || result.synced) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -86,6 +53,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final controller = context.watch<FavoritesController>();
     return Scaffold(
       backgroundColor: _bgBottom,
       extendBodyBehindAppBar: true,
@@ -98,10 +66,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           ).createShader(bounds),
           child: const Text(
             'Mes favoris',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              color: Colors.white,
-            ),
+            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
           ),
         ),
       ),
@@ -115,19 +80,19 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
           ),
         ),
         child: RefreshIndicator(
-          onRefresh: _loadFavorites,
+          onRefresh: controller.load,
           color: _accentStart,
           backgroundColor: _cardFill,
-          child: _isLoading
+          child: controller.isLoading
               ? const Center(
                   child: CircularProgressIndicator(color: _accentStart),
                 )
-              : _errorMessage != null
+              : controller.errorMessage != null
               ? _EmptyFavorites(
-                  message: _errorMessage!,
+                  message: controller.errorMessage!,
                   icon: Icons.wifi_off_rounded,
                 )
-              : _favorites.isEmpty
+              : controller.favorites.isEmpty
               ? const _EmptyFavorites(
                   message: 'Aucun favori pour le moment.',
                   icon: Icons.favorite_border_rounded,
@@ -140,10 +105,10 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                     16,
                     24,
                   ),
-                  itemCount: _favorites.length,
+                  itemCount: controller.favorites.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 12),
                   itemBuilder: (context, index) {
-                    final movie = _favorites[index];
+                    final movie = controller.favorites[index];
                     return _FavoriteTile(
                       movie: movie,
                       onTap: () => Navigator.of(context).push(
@@ -151,7 +116,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                           builder: (_) => MovieDetailScreen(movieId: movie.id),
                         ),
                       ),
-                      onRemove: () => _removeFavorite(movie),
+                      onRemove: () => _removeFavorite(controller, movie),
                     );
                   },
                 ),
@@ -292,10 +257,7 @@ class _EmptyFavorites extends StatelessWidget {
                 Text(
                   message,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white60,
-                    fontSize: 14,
-                  ),
+                  style: const TextStyle(color: Colors.white60, fontSize: 14),
                 ),
               ],
             ),

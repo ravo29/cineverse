@@ -10,36 +10,71 @@ class AuthenticatedClient extends http.BaseClient {
     AuthRepository? authRepository,
     SessionStorage? sessionStorage,
     FlutterSecureStorage? storage,
-  })  : sessionStorage = sessionStorage ??
-            SecureSessionStorage(storage: storage),
-        authRepository = authRepository ?? AuthRepositoryImpl();
+  }) : sessionStorage =
+           sessionStorage ?? SecureSessionStorage(storage: storage),
+       authRepository = authRepository ?? AuthRepositoryImpl();
 
   final http.Client inner;
   final SessionStorage sessionStorage;
   final AuthRepository authRepository;
-  bool _refreshing = false;
+  Future<bool>? _refreshFuture;
 
   @override
   Future<http.StreamedResponse> send(http.BaseRequest request) async {
     final prepared = await _withAccessToken(request);
     final response = await inner.send(prepared);
-    if (response.statusCode != 401 || _refreshing) return response;
+    if (response.statusCode != 401) return response;
+    if (request is! http.Request) return response;
 
+    final refreshed = await _refreshSession();
+    if (!refreshed) return response;
+    return inner.send(await _withAccessToken(request));
+  }
+
+  Future<bool> _refreshSession() {
+    final existingRefresh = _refreshFuture;
+    if (existingRefresh != null) return existingRefresh;
+
+    final refresh = _performRefresh();
+    _refreshFuture = refresh;
+    refresh.then<void>(
+      (_) => _clearRefresh(refresh),
+      onError: (Object _, StackTrace _) => _clearRefresh(refresh),
+    );
+    return refresh;
+  }
+
+  void _clearRefresh(Future<bool> refresh) {
+    if (identical(_refreshFuture, refresh)) _refreshFuture = null;
+  }
+
+  Future<bool> _performRefresh() async {
     final refreshToken = await sessionStorage.readRefreshToken();
-    if (refreshToken == null || refreshToken.isEmpty) return response;
+    if (refreshToken == null || refreshToken.isEmpty) return false;
 
-    _refreshing = true;
     try {
       final session = await authRepository.refresh(refreshToken);
       await sessionStorage.save(session);
-      return await inner.send(await _withAccessToken(request));
-    } finally {
-      _refreshing = false;
+      return true;
+    } on Exception {
+      try {
+        await sessionStorage.clear();
+      } on Exception {
+        // A failed cleanup must not prevent the original request from failing safely.
+      }
+      return false;
     }
   }
 
   Future<http.BaseRequest> _withAccessToken(http.BaseRequest request) async {
     final token = await sessionStorage.readAccessToken();
+    if (request is! http.Request) {
+      if (token != null && token.isNotEmpty) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+      return request;
+    }
+
     final copy = _copyRequest(request);
     if (token != null && token.isNotEmpty) {
       copy.headers['Authorization'] = 'Bearer $token';
@@ -52,8 +87,7 @@ class AuthenticatedClient extends http.BaseClient {
       ..headers.addAll(request.headers)
       ..followRedirects = request.followRedirects
       ..maxRedirects = request.maxRedirects
-      ..persistentConnection = request.persistentConnection
-      ..contentLength = request.contentLength;
+      ..persistentConnection = request.persistentConnection;
     if (request is http.Request) copy.bodyBytes = request.bodyBytes;
     return copy;
   }
