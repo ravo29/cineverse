@@ -20,6 +20,9 @@ class _FakeAuthProvider implements AuthProvider {
   Future<AuthSession> refresh(String refreshToken) {
     return Future.value(const AuthSession(accessToken: 'refreshed'));
   }
+
+  @override
+  Future<void> logout(String accessToken) async {}
 }
 
 void main() {
@@ -38,5 +41,11 @@ void main() {
       repository.register(name: 'Ada', email: 'a@b.test', password: 'pass'),
       completes,
     );
+  });
+
+  test('repository forwards logout to the provider', () async {
+    final repository = AuthRepositoryImpl(provider: _FakeAuthProvider());
+
+    await expectLater(repository.logout('access'), completes);
   });
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../auth/data/providers/auth_provider.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../data/providers/favorites_provider.dart';
 import '../../data/providers/movies_provider.dart';
 import '../../domain/entities/movie.dart';
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     repository: MoviesRepositoryImpl(),
   );
   final _secureTokenProvider = SecureTokenProvider();
+  final _authRepository = AuthRepositoryImpl();
   final List<Movie> _movies = [];
   int _page = 1;
   bool _hasMore = true;
@@ -139,7 +141,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('Annuler', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'Annuler',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: _accentEnd),
@@ -153,17 +158,29 @@ class _HomeScreenState extends State<HomeScreen> {
     if (shouldLogout != true || !mounted) return;
 
     try {
-      await _secureTokenProvider.clear();
-      await FavoritesProvider().clearLocalData();
-      if (!mounted) return;
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
+      final accessToken = await _secureTokenProvider.read();
+      if (accessToken != null && accessToken.isNotEmpty) {
+        await _authRepository.logout(accessToken);
+      }
     } on Exception {
-      if (!mounted) return;
-      _showError('Impossible de terminer la déconnexion.');
+      // Local cleanup still logs the user out when the network is unavailable.
     }
+
+    try {
+      try {
+        await _secureTokenProvider.clear();
+      } finally {
+        await FavoritesProvider().clearLocalData();
+      }
+    } on Exception {
+      if (mounted) _showError('Impossible d’effacer la session locale.');
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   void _showError(String message) {
@@ -221,7 +238,10 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const FavoritesScreen()),
             ),
-            icon: const Icon(Icons.favorite_border_rounded, color: Colors.white70),
+            icon: const Icon(
+              Icons.favorite_border_rounded,
+              color: Colors.white70,
+            ),
           ),
           IconButton(
             tooltip: 'Se déconnecter',

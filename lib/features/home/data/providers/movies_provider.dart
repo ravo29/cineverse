@@ -38,7 +38,8 @@ class RestMoviesProvider implements MoviesProvider {
   static const _tmdbApiKey = String.fromEnvironment('TMDB_API_KEY');
   static const _tmdbBearerToken = String.fromEnvironment('TMDB_BEARER_TOKEN');
   static const _tmdbEndpoint = 'https://api.themoviedb.org/3/movie/popular';
-  static const _topRatedEndpoint = 'https://api.themoviedb.org/3/movie/top_rated';
+  static const _topRatedEndpoint =
+      'https://api.themoviedb.org/3/movie/top_rated';
   static const _posterBaseUrl = 'https://image.tmdb.org/t/p/w500';
   static const _requestTimeout = Duration(seconds: 15);
   static const _cacheBoxName = 'cineverse';
@@ -63,28 +64,37 @@ class RestMoviesProvider implements MoviesProvider {
   }
 
   @override
-  Future<MoviesPage> fetchTopRated({required int page, required int pageSize}) async {
+  Future<MoviesPage> fetchTopRated({
+    required int page,
+    required int pageSize,
+  }) async {
     try {
-      final remotePage = await _fetchRemote(page, _topRatedEndpoint, 'top_rated');
+      final remotePage = await _fetchRemote(
+        page,
+        _topRatedEndpoint,
+        'top_rated',
+      );
       await _saveToCache(page, remotePage, 'top_rated');
       return remotePage;
     } on Exception catch (error) {
       final cachedPage = await _readFromCache(page, 'top_rated');
       if (cachedPage != null) return cachedPage;
       if (error is MoviesException) rethrow;
-      throw const MoviesException('Impossible de charger les films les mieux notés.');
+      throw const MoviesException(
+        'Impossible de charger les films les mieux notés.',
+      );
     }
   }
 
   @override
   Future<Movie> fetchDetails({required String movieId}) async {
-    if (_tmdbApiKey.isEmpty && _tmdbBearerToken.isEmpty) {
-      throw const MoviesException(
-        'Clé API TMDB non configurée. Utilisez TMDB_API_KEY.',
-      );
-    }
-
     try {
+      if (_tmdbApiKey.isEmpty && _tmdbBearerToken.isEmpty) {
+        throw const MoviesException(
+          'Clé API TMDB non configurée. Utilisez TMDB_API_KEY.',
+        );
+      }
+
       final queryParameters = <String, String>{'language': 'fr-FR'};
       if (_tmdbBearerToken.isEmpty) queryParameters['api_key'] = _tmdbApiKey;
       final endpoint = Uri.parse(
@@ -109,21 +119,37 @@ class RestMoviesProvider implements MoviesProvider {
       if (decoded is! Map<String, dynamic>) {
         throw const FormatException('Invalid TMDB movie response');
       }
-      return Movie.fromJson(_withHighDefinitionPoster(decoded));
+      final movie = Movie.fromJson(_withHighDefinitionPoster(decoded));
+      await _saveMovieToCache(movie);
+      return movie;
     } on MoviesException {
+      final cachedMovie = await _readMovieFromCache(movieId);
+      if (cachedMovie != null) return cachedMovie;
       rethrow;
     } on TimeoutException {
+      final cachedMovie = await _readMovieFromCache(movieId);
+      if (cachedMovie != null) return cachedMovie;
       throw const MoviesException('Connexion réseau impossible.');
     } on http.ClientException {
+      final cachedMovie = await _readMovieFromCache(movieId);
+      if (cachedMovie != null) return cachedMovie;
       throw const MoviesException('Impossible de charger le film.');
     } on FormatException {
+      final cachedMovie = await _readMovieFromCache(movieId);
+      if (cachedMovie != null) return cachedMovie;
       throw const MoviesException('Réponse invalide du serveur.');
     } on Exception {
+      final cachedMovie = await _readMovieFromCache(movieId);
+      if (cachedMovie != null) return cachedMovie;
       throw const MoviesException('Impossible de charger le film.');
     }
   }
 
-  Future<MoviesPage> _fetchRemote(int page, String endpoint, String cacheName) async {
+  Future<MoviesPage> _fetchRemote(
+    int page,
+    String endpoint,
+    String cacheName,
+  ) async {
     if (_tmdbApiKey.isEmpty && _tmdbBearerToken.isEmpty) {
       throw const MoviesException(
         'Clé API TMDB non configurée. Utilisez TMDB_API_KEY.',
@@ -138,9 +164,9 @@ class RestMoviesProvider implements MoviesProvider {
       if (_tmdbBearerToken.isEmpty) {
         queryParameters['api_key'] = _tmdbApiKey;
       }
-      final requestEndpoint = Uri.parse(endpoint).replace(
-        queryParameters: queryParameters,
-      );
+      final requestEndpoint = Uri.parse(
+        endpoint,
+      ).replace(queryParameters: queryParameters);
       final response = await _client
           .get(
             requestEndpoint,
@@ -172,7 +198,11 @@ class RestMoviesProvider implements MoviesProvider {
     }
   }
 
-  Future<void> _saveToCache(int page, MoviesPage moviesPage, String cacheName) async {
+  Future<void> _saveToCache(
+    int page,
+    MoviesPage moviesPage,
+    String cacheName,
+  ) async {
     try {
       final box = Hive.isBoxOpen(_cacheBoxName)
           ? Hive.box<dynamic>(_cacheBoxName)
@@ -181,6 +211,17 @@ class RestMoviesProvider implements MoviesProvider {
         'movies': moviesPage.movies.map((movie) => movie.toJson()).toList(),
         'has_more': moviesPage.hasMore,
       });
+    } on Exception {
+      // A cache failure must not make a successful network response fail.
+    }
+  }
+
+  Future<void> _saveMovieToCache(Movie movie) async {
+    try {
+      final box = Hive.isBoxOpen(_cacheBoxName)
+          ? Hive.box<dynamic>(_cacheBoxName)
+          : await Hive.openBox<dynamic>(_cacheBoxName);
+      await box.put(_detailsCacheKey(movie.id), movie.toJson());
     } on Exception {
       // A cache failure must not make a successful network response fail.
     }
@@ -211,7 +252,23 @@ class RestMoviesProvider implements MoviesProvider {
     }
   }
 
-  String _cacheKey(int page, String cacheName) => '${cacheName}_movies_page_$page';
+  Future<Movie?> _readMovieFromCache(String movieId) async {
+    try {
+      final box = Hive.isBoxOpen(_cacheBoxName)
+          ? Hive.box<dynamic>(_cacheBoxName)
+          : await Hive.openBox<dynamic>(_cacheBoxName);
+      final cached = box.get(_detailsCacheKey(movieId));
+      if (cached is! Map) return null;
+      return Movie.fromJson(Map<String, dynamic>.from(cached));
+    } on Exception {
+      return null;
+    }
+  }
+
+  String _cacheKey(int page, String cacheName) =>
+      '${cacheName}_movies_page_$page';
+
+  String _detailsCacheKey(String movieId) => 'movie_details_$movieId';
 
   MoviesPage _parsePage(String body) {
     final decoded = jsonDecode(body);

@@ -10,9 +10,10 @@ CineVerse est une application Flutter de découverte de films. Elle utilise TMDB
 - Catalogue paginé des films populaires depuis TMDB.
 - Écran de détail d'un film avec note, genres, synopsis et poster.
 - Écran des favoris synchronisés avec Supabase REST.
-- Cache local Hive pour les pages TMDB et les favoris.
-- Mode hors-ligne : les dernières données locales restent consultables et les modifications de favoris sont mises en file d'attente.
+- Cache local Hive pour les pages TMDB, les détails de films et les favoris.
+- Mode hors-ligne : les dernières listes et les derniers détails consultés restent affichés ; les modifications de favoris sont mises en file d'attente.
 - La queue Hive est dédupliquée par utilisateur et film, puis rejouée à la prochaine lecture ou modification des favoris. L'interface affiche le nombre d'opérations en attente.
+- Déconnexion Supabase via `/auth/v1/logout`, suivie de l'effacement sécurisé des tokens et du cache local. Si le réseau est indisponible, l'effacement local est tout de même effectué.
 - Messages utilisateur pour les erreurs réseau, d'authentification, de quota et de serveur.
 
 ## Architecture
@@ -33,7 +34,11 @@ lib/
 test/                         tests unitaires des repositories
 ```
 
-Les écrans dépendent des use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. `SessionStorage` abstrait `flutter_secure_storage`, ce qui rend le refresh et les tests injectables. Cette structure permet de remplacer le réseau par des doublures dans les tests.
+Les écrans dépendent des use cases, les use cases dépendent des interfaces de repository et les repositories encapsulent les providers HTTP/cache. `SessionStorage` abstrait `flutter_secure_storage`, ce qui rend le refresh, le logout et les tests injectables. Cette structure permet de remplacer le réseau par des doublures dans les tests.
+
+### Stratégie hors-ligne
+
+Les réponses TMDB sont enregistrées dans la box Hive `cineverse` après chaque réponse réussie. En cas de timeout, d'erreur HTTP, de réponse invalide ou de configuration absente, le provider tente la page ou le détail déjà enregistré avant de remonter une erreur. Les favoris suivent une stratégie différente : l'état local est modifié immédiatement, puis l'opération Supabase est rejouée depuis une queue dédupliquée lorsque la connectivité revient.
 
 ## Configuration et lancement
 
@@ -52,7 +57,7 @@ Un token TMDB Read Access peut remplacer la clé API avec `TMDB_BEARER_TOKEN`. N
 
 ## API utilisées
 
-- Supabase Auth : `POST /auth/v1/token?grant_type=password`, `POST /auth/v1/token?grant_type=refresh_token` et `POST /auth/v1/signup`.
+- Supabase Auth : `POST /auth/v1/token?grant_type=password`, `POST /auth/v1/token?grant_type=refresh_token`, `POST /auth/v1/signup` et `POST /auth/v1/logout`.
 - Supabase REST : lecture, ajout et suppression des favoris via `/rest/v1/favorites`.
 - TMDB : `GET /3/movie/popular`, `GET /3/movie/top_rated` et `GET /3/movie/{movie_id}` avec langue `fr-FR`.
 
@@ -62,5 +67,7 @@ Un token TMDB Read Access peut remplacer la clé API avec `TMDB_BEARER_TOKEN`. N
 flutter analyze
 flutter test
 ```
+
+Les tests unitaires couvrent les repositories d'authentification, de films et de favoris avec des providers injectés. Ils vérifient notamment la délégation, les contrats de domaine et les métadonnées de cache.
 
 La CI GitHub Actions exécute ces deux commandes sur chaque push et pull request.

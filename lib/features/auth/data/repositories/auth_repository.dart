@@ -10,11 +10,13 @@ abstract interface class AuthRepository {
   });
 
   Future<AuthSession> refresh(String refreshToken);
+
+  Future<void> logout(String accessToken);
 }
 
 class AuthRepositoryImpl implements AuthRepository {
   AuthRepositoryImpl({AuthProvider? provider})
-      : _provider = provider ?? RestAuthProvider();
+    : _provider = provider ?? RestAuthProvider();
 
   final AuthProvider _provider;
 
@@ -35,5 +37,10 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<AuthSession> refresh(String refreshToken) {
     return _provider.refresh(refreshToken);
+  }
+
+  @override
+  Future<void> logout(String accessToken) {
+    return _provider.logout(accessToken);
   }
 }

@@ -16,6 +16,8 @@ abstract interface class AuthProvider {
   });
 
   Future<AuthSession> refresh(String refreshToken);
+
+  Future<void> logout(String accessToken);
 }
 
 class AuthSession {
@@ -90,9 +92,9 @@ class RestAuthProvider implements AuthProvider {
     }
 
     try {
-      final endpoint = Uri.parse('$_baseUrl/auth/v1/token').replace(
-        queryParameters: {'grant_type': 'refresh_token'},
-      );
+      final endpoint = Uri.parse(
+        '$_baseUrl/auth/v1/token',
+      ).replace(queryParameters: {'grant_type': 'refresh_token'});
       final response = await _post(
         endpoint,
         body: {'refresh_token': refreshToken},
@@ -104,7 +106,9 @@ class RestAuthProvider implements AuthProvider {
 
       final accessToken = responseBody['access_token'];
       if (accessToken is! String || accessToken.isEmpty) {
-        throw const AuthException('Session expirée. Veuillez vous reconnecter.');
+        throw const AuthException(
+          'Session expirée. Veuillez vous reconnecter.',
+        );
       }
       return AuthSession(
         accessToken: accessToken,
@@ -116,6 +120,37 @@ class RestAuthProvider implements AuthProvider {
       throw const AuthException('Connexion réseau impossible.');
     } on Exception {
       throw const AuthException('Impossible de renouveler la session.');
+    }
+  }
+
+  @override
+  Future<void> logout(String accessToken) async {
+    if (!_isConfigured) {
+      throw const AuthException('Configuration Supabase absente.');
+    }
+
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$_baseUrl/auth/v1/logout'),
+            headers: {
+              'Accept': 'application/json',
+              'apikey': _supabaseAnonKey,
+              'Authorization': 'Bearer $accessToken',
+            },
+          )
+          .timeout(_requestTimeout);
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw AuthException(_errorMessage(response.statusCode, const {}));
+      }
+    } on AuthException {
+      rethrow;
+    } on TimeoutException {
+      throw const AuthException('Connexion réseau impossible.');
+    } on http.ClientException {
+      throw const AuthException('Impossible de terminer la déconnexion.');
+    } on Exception {
+      throw const AuthException('Impossible de terminer la déconnexion.');
     }
   }
 
@@ -218,7 +253,8 @@ class RestAuthProvider implements AuthProvider {
     if (statusCode == 409) return 'Cette adresse e-mail est déjà utilisée.';
     if (statusCode >= 500) return 'Serveur indisponible. Réessayez plus tard.';
 
-    final message = responseBody['msg'] ??
+    final message =
+        responseBody['msg'] ??
         responseBody['message'] ??
         responseBody['error_description'] ??
         responseBody['error'];
@@ -251,10 +287,7 @@ class SecureTokenProvider {
     try {
       await _storage.write(key: tokenKey, value: session.accessToken);
       if (session.refreshToken != null) {
-        await _storage.write(
-          key: refreshTokenKey,
-          value: session.refreshToken,
-        );
+        await _storage.write(key: refreshTokenKey, value: session.refreshToken);
       }
     } on Exception {
       throw const AuthException(
